@@ -20,10 +20,11 @@ namespace jlikme
 
         public const string FALLBACK_URL = "https://blog.jeremylikness.com/?utm_source=jeliknes&utm_medium=redirect&utm_campaign=jlik_me";
         public const string KEEP_ALIVE = "xxxxxx";
+        public const string KEEP_ALIVE_URL = "https://jlikme.azurewebsites.net/api/UrlRedirect/xxxxxx";
 
-        [FunctionName(name: "UrlRedirect2")]
+        [FunctionName(name: "UrlRedirect")]
         public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", 
-            Route = "UrlRedirect2/{shortUrl}")]HttpRequestMessage req, 
+            Route = "UrlRedirect/{shortUrl}")]HttpRequestMessage req, 
             [Table(tableName: "urls")]CloudTable inputTable, 
             string shortUrl,
             [Queue(queueName: "requests")]IAsyncCollector<string> queue,
@@ -78,6 +79,14 @@ namespace jlikme
             var res = req.CreateResponse(HttpStatusCode.Redirect);
             res.Headers.Add("Location", redirectUrl);
             return res;
+        }
+
+        [FunctionName("KeepAlive")]
+        public static async Task KeepAlive([TimerTrigger(scheduleExpression: "0 */4 * * * *")]TimerInfo myTimer, TraceWriter log)
+        {
+            log.Info("Keep-Alive invoked.");
+            var client = new HttpClient();
+            await client.GetAsync(KEEP_ALIVE_URL);
         }
     }
 }
