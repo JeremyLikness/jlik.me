@@ -35,6 +35,8 @@ namespace jlikme
         {
             log.Info($"C# HTTP trigger function processed a request for shortUrl {shortUrl}");
 
+            shortUrl = shortUrl.ToLower();
+
             if (shortUrl == KEEP_ALIVE)
             {
                 log.Info("Exiting keep alive call.");
