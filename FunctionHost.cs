@@ -19,6 +19,8 @@ namespace jlikme
             InstrumentationKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY")
         };
 
+        public const string ROBOTS = "robots.txt";
+        public const string ROBOT_RESPONSE = "User-agent: *\nDisallow: /";
         public const string FALLBACK_URL = "https://blog.jeremylikness.com/?utm_source=jeliknes&utm_medium=redirect&utm_campaign=jlik_me";
         public const string KEEP_ALIVE = "xxxxxx";
         public const string KEEP_ALIVE_URL = "https://jlikme.azurewebsites.net/api/UrlRedirect/xxxxxx";
@@ -38,6 +40,13 @@ namespace jlikme
                 log.Info("Exiting keep alive call.");
                 var noContent = req.CreateResponse(HttpStatusCode.NoContent);
                 return noContent;
+            }
+
+            if (shortUrl == ROBOTS)
+            {
+                log.Info("Request for robots.txt.");
+                var robotResponse = req.CreateResponse(HttpStatusCode.OK, ROBOT_RESPONSE, "text/plain");
+                return robotResponse;
             }
 
             var redirectUrl = FALLBACK_URL;
