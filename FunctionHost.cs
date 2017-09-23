@@ -7,6 +7,7 @@ using Microsoft.Azure.WebJobs.Host;
 using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.ApplicationInsights;
 using System;
+using System.Web;
 using System.Threading.Tasks;
 
 namespace jlikme
@@ -62,11 +63,6 @@ namespace jlikme
                 {
                     log.Info($"Found it: {fullUrl.Url}");
                     redirectUrl = WebUtility.UrlDecode(fullUrl.Url);
-                    telemetry.TrackPageView(redirectUrl);
-                    if (!string.IsNullOrWhiteSpace(fullUrl.Medium))
-                    {
-                        telemetry.TrackEvent(fullUrl.Medium);
-                    }
                 }
             }
             else
@@ -87,6 +83,46 @@ namespace jlikme
             log.Info("Keep-Alive invoked.");
             var client = new HttpClient();
             await client.GetAsync(KEEP_ALIVE_URL);
+        }
+
+        [FunctionName("ProcessQueue")]
+        public static void ProcessQueue([QueueTrigger(queueName: "requests")]string request, TraceWriter log)
+        {
+            var parsed = request.Split('|');
+            if (parsed.Length != 3)
+            {
+                log.Warning($"Bad queue request: {request}");
+            }
+            else
+            {
+                // throw exception if this is bad 
+                var url = new Uri(parsed[1]);
+                var page = $"{url.Host}{url.AbsolutePath}";
+                telemetry.TrackPageView(page);
+                log.Info($"Tracked page view {page}");
+                if (!string.IsNullOrWhiteSpace(url.Query))
+                {
+                    var customEvent = string.Empty;
+                    var queries = HttpUtility.ParseQueryString(url.Query);
+                    if (queries["utm_medium"] != null)
+                    {
+                        customEvent = queries["utm_medium"];
+                    }
+                    else
+                    {
+                        if (queries["WT.mc_id"] != null)
+                        {
+                            var parts = queries["WT.mc_id"].Split('-');
+                            customEvent = parts[1];
+                        }
+                    }
+                    if (!string.IsNullOrWhiteSpace(customEvent))
+                    {
+                        telemetry.TrackEvent(customEvent);
+                        log.Info($"Tracked custom event: {customEvent}");
+                    }
+                }
+            }
         }
     }
 }
