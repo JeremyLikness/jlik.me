@@ -1,6 +1,8 @@
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using Microsoft.Azure.Documents;
+using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
@@ -9,6 +11,8 @@ using Microsoft.ApplicationInsights;
 using System;
 using System.Web;
 using System.Threading.Tasks;
+using System.Dynamic;
+using System.Collections.Generic;
 
 namespace jlikme
 {
@@ -24,6 +28,8 @@ namespace jlikme
         public const string FALLBACK_URL = "https://blog.jeremylikness.com/?utm_source=jeliknes&utm_medium=redirect&utm_campaign=jlik_me";
         public const string KEEP_ALIVE = "xxxxxx";
         public const string KEEP_ALIVE_URL = "https://jlikme.azurewebsites.net/api/UrlRedirect/xxxxxx";
+        public const string URL_TRACKING = "url-tracking";
+        public const string URL_STATS = "url-stats";
 
         [FunctionName(name: "UrlRedirect")]
         public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", 
@@ -69,8 +75,7 @@ namespace jlikme
 
                 telemetry.TrackDependency("AzureTableStorage", "Retrieve", startTime, timer.Elapsed, result.Result != null);
 
-                ShortUrl fullUrl = result.Result as ShortUrl;
-                if (fullUrl != null)
+                if (result.Result is ShortUrl fullUrl)
                 {
                     log.Info($"Found it: {fullUrl.Url}");
                     redirectUrl = WebUtility.UrlDecode(fullUrl.Url);
@@ -97,9 +102,14 @@ namespace jlikme
         }
 
         [FunctionName("ProcessQueue")]
-        public static void ProcessQueue([QueueTrigger(queueName: "requests")]string request, TraceWriter log)
+        public static void ProcessQueue([QueueTrigger(queueName: "requests")]string request, 
+            [DocumentDB(URL_TRACKING, URL_STATS, CreateIfNotExists = true, ConnectionStringSetting ="CosmosDb")]out dynamic doc, 
+            TraceWriter log)
         {
             var parsed = request.Split('|');
+            var page = string.Empty;
+            DateTime date = DateTime.UtcNow;
+            var customEvent = string.Empty;
             if (parsed.Length != 3)
             {
                 log.Warning($"Bad queue request: {request}");
@@ -108,12 +118,14 @@ namespace jlikme
             {
                 // throw exception if this is bad 
                 var url = new Uri(parsed[1]);
-                var page = $"{url.Host}{url.AbsolutePath}";
+                // and this 
+                date = DateTime.Parse(parsed[2]);
+                page = $"{url.Host}{url.AbsolutePath}";
                 telemetry.TrackPageView(page);
                 log.Info($"Tracked page view {page}");
                 if (!string.IsNullOrWhiteSpace(url.Query))
                 {
-                    var customEvent = string.Empty;
+                    customEvent = string.Empty;
                     var queries = HttpUtility.ParseQueryString(url.Query);
                     if (queries["utm_medium"] != null)
                     {
@@ -133,6 +145,17 @@ namespace jlikme
                         log.Info($"Tracked custom event: {customEvent}");
                     }
                 }
+            }
+
+            // cosmos DB 
+            doc = new ExpandoObject();
+            doc.id = Guid.NewGuid().ToString();
+            doc.page = page;
+            doc.count = 1;
+            doc.timestamp = date; 
+            if (!string.IsNullOrWhiteSpace(customEvent))
+            {
+                ((IDictionary<string, object>)doc).Add(customEvent, 1);
             }
         }
     }
