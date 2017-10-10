@@ -148,9 +148,10 @@ namespace jlikme
             }
 
             // cosmos DB 
+            var normalize = new[] { '/' };
             doc = new ExpandoObject();
             doc.id = Guid.NewGuid().ToString();
-            doc.page = page;
+            doc.page = page.TrimEnd(normalize);
             doc.count = 1;
             doc.timestamp = date; 
             if (!string.IsNullOrWhiteSpace(customEvent))
