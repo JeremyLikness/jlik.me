@@ -1,17 +1,11 @@
 {
-    "$schema": "http://json.schemastore.org/proxies",
-    "proxies": {
-        "Domain Redirect": {
-            "matchCondition": {
-                "route": "/{*shortUrl}"
-            },
-            "backendUri": "http://jlikme.azurewebsites.net/api/UrlRedirect/{shortUrl}"
-        },
-        "Api": {
-            "matchCondition": {
-                "route": "/api/{*path}"
-            },
-            "backendUri": "http://jlikme.azurewebsites.net/api/{path}"
-        }
+  "$schema": "http://json.schemastore.org/proxies",
+  "proxies": {
+    "Domain Redirect": {
+      "matchCondition": {
+        "route": "/{shortUrl}"
+      },
+      "backendUri": "http://jlikme.azurewebsites.net/api/UrlRedirect/{shortUrl}"
     }
+  }
 }
