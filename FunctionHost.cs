@@ -174,6 +174,7 @@ namespace jlikme
             {
                 ((IDictionary<string, object>)doc).Add(customEvent, 1);
             }
+            log.Info($"CosmosDB: {doc.id}|{doc.page}|{shortUrl}|{campaign}|{customEvent}");
         }
     }
 }
