@@ -108,6 +108,8 @@ namespace jlikme
         {
             var parsed = request.Split('|');
             var page = string.Empty;
+            var shortUrl = string.Empty;
+            var campaign = string.Empty;
             DateTime date = DateTime.UtcNow;
             var customEvent = string.Empty;
             if (parsed.Length != 3)
@@ -116,6 +118,7 @@ namespace jlikme
             }
             else
             {
+                shortUrl = parsed[0].ToUpper().Trim();
                 // throw exception if this is bad 
                 var url = new Uri(parsed[1]);
                 // and this 
@@ -130,12 +133,17 @@ namespace jlikme
                     if (queries["utm_medium"] != null)
                     {
                         customEvent = queries["utm_medium"];
+                        if (queries["utm_campaign"] != null)
+                        {
+                            campaign = queries["utm_campaign"];
+                        }
                     }
                     else
                     {
                         if (queries["WT.mc_id"] != null)
                         {
                             var parts = queries["WT.mc_id"].Split('-');
+                            campaign = parts[0];
                             customEvent = parts[1];
                         }
                     }
@@ -152,6 +160,14 @@ namespace jlikme
             doc = new ExpandoObject();
             doc.id = Guid.NewGuid().ToString();
             doc.page = page.TrimEnd(normalize);
+            if (!string.IsNullOrWhiteSpace(shortUrl))
+            {
+                doc.shortUrl = shortUrl;
+            }
+            if (!string.IsNullOrWhiteSpace(campaign))
+            {
+                doc.campaign = campaign;
+            }
             doc.count = 1;
             doc.timestamp = date; 
             if (!string.IsNullOrWhiteSpace(customEvent))
