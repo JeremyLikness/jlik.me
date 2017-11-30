@@ -1,8 +1,6 @@
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
@@ -13,6 +11,7 @@ using System.Web;
 using System.Threading.Tasks;
 using System.Dynamic;
 using System.Collections.Generic;
+using jlikme.Models;
 
 namespace jlikme
 {
@@ -23,6 +22,7 @@ namespace jlikme
             InstrumentationKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY")
         };
 
+        public const string Alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
         public const string ROBOTS = "robots.txt";
         public const string ROBOT_RESPONSE = "User-agent: *\nDisallow: /";
         public const string FALLBACK_URL = "https://blog.jeremylikness.com/?utm_source=jeliknes&utm_medium=redirect&utm_campaign=jlik_me";
@@ -30,13 +30,152 @@ namespace jlikme
         public const string KEEP_ALIVE_URL = "https://jlikme.azurewebsites.net/api/UrlRedirect/xxxxxx";
         public const string URL_TRACKING = "url-tracking";
         public const string URL_STATS = "url-stats";
+        public const string SOURCE = "jeliknes";
+        public const string DEFAULT_CAMPAIGN = "link";
+
+        public const string UTM_MEDIUM = "utm_medium";
+        public const string UTM_SOURCE = "utm_source";
+        public const string UTM_CAMPAIGN = "utm_campaign";
+        public const string WTMCID = "WT.mc_id";
+
+        public const string TABLE = "urls";
+        public const string QUEUE = "requests";
+        public const string KEY = "KEY";
+
+        public static readonly int Base = Alphabet.Length;
+
+        public static string Encode(int i)
+        {
+            if (i == 0)
+                return Alphabet[0].ToString();
+            var s = string.Empty;
+            while (i > 0)
+            {
+                s += Alphabet[i % Base];
+                i = i / Base;
+            }
+
+            return string.Join(string.Empty, s.Reverse());
+        }
+
+        [FunctionName("ShortenUrl")]
+        public static async Task<HttpResponseMessage> ShortenUrl(
+            [HttpTrigger(AuthorizationLevel.Function, "post")]HttpRequestMessage req, 
+            [Table(TABLE, "1", KEY, Take = 1)]NextId keyTable, 
+            [Table(TABLE)]CloudTable tableOut, 
+            TraceWriter log)
+        {
+            log.Info($"C# triggered function called with req: {req}");
+
+            if (req == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            ShortRequest input = await req.Content.ReadAsAsync<ShortRequest>();
+
+            if (input == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            var result = new List<ShortResponse>();
+            var url = input.Input;
+            var campaign = string.IsNullOrWhiteSpace(input.Campaign) ? DEFAULT_CAMPAIGN : input.Campaign;
+            bool tagMediums = input.Mediums != null && input.Mediums.Any();
+            var utm = input.TagUtm.HasValue && input.TagUtm.Value;
+            var wt = input.TagWt.HasValue && input.TagWt.Value;
+            var tag = utm || wt; 
+
+            if (tagMediums && !tag)
+            {
+                throw new Exception("Must choose either UTM or WT when mediums are passed.");
+            }
+
+            if (tag && !tagMediums)
+            {
+                throw new Exception("Can't specify a tag without at least one medium.");
+            }
+
+            log.Info($"URL: {url} Tag UTM? {utm} Tag WebTrends? {wt}");
+
+            if (String.IsNullOrWhiteSpace(url))
+            {
+                throw new Exception("Need a URL to shorten!");
+            }
+
+            log.Info($"Current key: {keyTable.Id}");
+
+            var host = req.RequestUri.GetLeftPart(UriPartial.Authority);
+
+            if (tagMediums)
+            {
+                foreach (var medium in input.Mediums)
+                {
+                    var uri = new UriBuilder(url);
+                    var parameters = HttpUtility.ParseQueryString(uri.Query);
+                    if (utm)
+                    {
+                        parameters.Add(UTM_SOURCE, SOURCE);
+                        parameters.Add(UTM_MEDIUM, medium);
+                        parameters.Add(UTM_CAMPAIGN, input.Campaign);
+                    }
+                    if (wt)
+                    {
+                        parameters.Add(WTMCID, $"{input.Campaign}-{medium}-{SOURCE}");
+                    }
+                    uri.Query = parameters.ToString();
+                    var mediumUrl = uri.ToString();
+                    var shortUrl = Encode(keyTable.Id++);
+                    log.Info($"Short URL for {mediumUrl} is {shortUrl}");
+                    var newUrl = new ShortUrl
+                    {
+                        PartitionKey = $"{shortUrl.First()}",
+                        RowKey = $"{shortUrl}",
+                        Medium = medium,
+                        Url = mediumUrl
+                    };
+                    var multiAdd = TableOperation.Insert(newUrl);
+                    await tableOut.ExecuteAsync(multiAdd);
+                    result.Add(new ShortResponse
+                    {
+                        ShortUrl = $"{host}/{newUrl.RowKey}",
+                        LongUrl = WebUtility.UrlDecode(newUrl.Url)
+                    });
+                }
+            }
+            else
+            {
+                var shortUrl = Encode(keyTable.Id++);
+                log.Info($"Short URL for {url} is {shortUrl}");
+                var newUrl = new ShortUrl
+                {
+                    PartitionKey = $"{shortUrl.First()}",
+                    RowKey = $"{shortUrl}",
+                    Url = url
+                };
+                var singleAdd = TableOperation.Insert(newUrl);
+                await tableOut.ExecuteAsync(singleAdd);
+                result.Add(new ShortResponse
+                {
+                    ShortUrl = $"{host}/{newUrl.RowKey}",
+                    LongUrl = WebUtility.UrlDecode(newUrl.Url)
+                });
+            }
+
+            var operation = TableOperation.Replace(keyTable);
+            await tableOut.ExecuteAsync(operation);
+
+            log.Info($"Done.");
+            return req.CreateResponse(HttpStatusCode.OK, result);
+        }
 
         [FunctionName(name: "UrlRedirect")]
         public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", 
             Route = "UrlRedirect/{shortUrl}")]HttpRequestMessage req, 
-            [Table(tableName: "urls")]CloudTable inputTable, 
+            [Table(tableName: TABLE)]CloudTable inputTable, 
             string shortUrl,
-            [Queue(queueName: "requests")]IAsyncCollector<string> queue,
+            [Queue(queueName: QUEUE)]IAsyncCollector<string> queue,
             TraceWriter log)
         {
             log.Info($"C# HTTP trigger function processed a request for shortUrl {shortUrl}");
@@ -102,7 +241,7 @@ namespace jlikme
         }
 
         [FunctionName("ProcessQueue")]
-        public static void ProcessQueue([QueueTrigger(queueName: "requests")]string request, 
+        public static void ProcessQueue([QueueTrigger(queueName: QUEUE)]string request, 
             [DocumentDB(URL_TRACKING, URL_STATS, CreateIfNotExists = true, ConnectionStringSetting ="CosmosDb")]out dynamic doc, 
             TraceWriter log)
         {
@@ -121,28 +260,38 @@ namespace jlikme
                 shortUrl = parsed[0].ToUpper().Trim();
                 // throw exception if this is bad 
                 var url = new Uri(parsed[1]);
+                var pageUrl = new UriBuilder(parsed[1]);
+                var parameters = HttpUtility.ParseQueryString(pageUrl.Query);
+                foreach(var check in new [] { UTM_CAMPAIGN, UTM_MEDIUM, UTM_SOURCE, WTMCID })
+                {
+                    if (parameters[check] != null)
+                    {
+                        parameters.Remove(check);
+                    }
+                }
+                pageUrl.Query = parameters.ToString();
                 // and this 
                 date = DateTime.Parse(parsed[2]);
-                page = $"{url.Host}{url.AbsolutePath}";
+                page = $"{pageUrl.ToString()}";
                 telemetry.TrackPageView(page);
                 log.Info($"Tracked page view {page}");
                 if (!string.IsNullOrWhiteSpace(url.Query))
                 {
                     customEvent = string.Empty;
                     var queries = HttpUtility.ParseQueryString(url.Query);
-                    if (queries["utm_medium"] != null)
+                    if (queries[UTM_MEDIUM] != null)
                     {
-                        customEvent = queries["utm_medium"];
-                        if (queries["utm_campaign"] != null)
+                        customEvent = queries[UTM_MEDIUM];
+                        if (queries[UTM_CAMPAIGN] != null)
                         {
-                            campaign = queries["utm_campaign"];
+                            campaign = queries[UTM_CAMPAIGN];
                         }
                     }
                     else
                     {
-                        if (queries["WT.mc_id"] != null)
+                        if (queries[WTMCID] != null)
                         {
-                            var parts = queries["WT.mc_id"].Split('-');
+                            var parts = queries[WTMCID].Split('-');
                             campaign = parts[0];
                             customEvent = parts[1];
                         }
