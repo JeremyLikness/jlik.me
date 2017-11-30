@@ -4,9 +4,13 @@
   </PropertyGroup>
   <ItemGroup>
     <None Remove="local.settings.json" />
+    <None Remove="www\LinkShortener.html" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="local.settings.json" />
+    <Content Include="www\LinkShortener.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.ApplicationInsights" Version="2.4.0" />

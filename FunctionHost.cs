@@ -12,6 +12,8 @@ using System.Threading.Tasks;
 using System.Dynamic;
 using System.Collections.Generic;
 using jlikme.Models;
+using System.IO;
+using System.Net.Http.Headers;
 
 namespace jlikme
 {
@@ -56,6 +58,32 @@ namespace jlikme
             }
 
             return string.Join(string.Empty, s.Reverse());
+        }
+
+        [FunctionName("Utility")]
+        public static HttpResponseMessage Admin([HttpTrigger(AuthorizationLevel.Anonymous, "get")]HttpRequestMessage req,
+            TraceWriter log)
+        {
+            var path = "LinkShortener.html";
+           
+            var scriptPath = Path.Combine(Environment.CurrentDirectory, "www");
+            if (!Directory.Exists(scriptPath))
+            {
+                scriptPath = Path.Combine(
+                    Environment.GetEnvironmentVariable("HOME", EnvironmentVariableTarget.Process), 
+                    @"site\wwwroot\www");
+            }
+            var filePath = Path.GetFullPath(Path.Combine(scriptPath, path));
+            if (!File.Exists(filePath))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+            log.Info($"Attempting to retrieve file at path {filePath}.");
+            var response = new HttpResponseMessage(HttpStatusCode.OK);
+            var stream = new FileStream(filePath, FileMode.Open);
+            response.Content = new StreamContent(stream);
+            response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/html");
+            return response;
         }
 
         [FunctionName("ShortenUrl")]
@@ -113,6 +141,7 @@ namespace jlikme
                 foreach (var medium in input.Mediums)
                 {
                     var uri = new UriBuilder(url);
+                    uri.Port = -1;
                     var parameters = HttpUtility.ParseQueryString(uri.Query);
                     if (utm)
                     {

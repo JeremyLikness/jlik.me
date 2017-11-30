@@ -1,0 +1,141 @@
+﻿<html>
+
+<head>
+    <title>URL Shortener</title>
+    <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap@next/dist/css/bootstrap.min.css" />
+    <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+    <script src="https://unpkg.com/vue"></script>
+    <script src="https://unpkg.com/babel-polyfill@latest/dist/polyfill.min.js"></script>
+    <script src="https://unpkg.com/tether@latest/dist/js/tether.min.js"></script>
+    <script src="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.js"></script>
+</head>
+
+<body>
+    <h1>Url Shortener</h1>
+    <div id="app">
+        <b-alert variant="danger" dismissible :show="alertText && showAlert" @dismissed="showAlert=false">
+            {{ alertText }}
+        </b-alert>
+        <div v-if="busy" style="position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0, 0.6);">
+            <br /><br /><br />
+            <h1 class="text-center" style="vertical-align: middle; color: white;">Loading...</h1>
+        </div>
+        <b-card title="Create URL" style="max-width: 20rem; float:left;" class="mb-2">
+            <div class="card-text">
+                <p>Base URL: {{baseUrl}}</p>
+                <p>Enter Code:</p>
+                <b-form-input type="text" v-model="code"></b-form-input>
+                <p>Enter URL:</p>
+                <b-form-input type="text" v-model="url"></b-form-input>
+                <p>Enter Campaign:</p>
+                <b-form-input type="text" v-model="campaign"></b-form-input>
+                <b-form-checkbox v-model="tagUtm">Tag Utm?</b-form-checkbox>
+                <b-form-checkbox v-model="tagWt">Tag WT?</b-form-checkbox>
+                <b-form-checkbox v-model="twitter">Twitter?</b-form-checkbox>
+                <b-form-checkbox v-model="facebook">Facebook?</b-form-checkbox>
+                <b-form-checkbox v-model="linkedin">LinkedIn?</b-form-checkbox>
+                <p>Custom Medium:</p>
+                <b-form-input type="text" v-model="medium"></b-form-input>
+                <b-button :disabled="busy" @click="shorten">Shorten</b-button>
+            </div>
+        </b-card>
+        <b-card title="Shortened URLs" style="max-width: 80rem; float:left;" class="mb-2">
+            <div class="card-text">
+                <div v-if="urls.length === 0">(no urls)</div>
+                <div v-if="urls.length">
+                    <div style="max-height: 400px; overflow-y: scroll;">
+                        <p v-for="url in urls"><strong>{{url.ShortUrl}}</strong> | {{url.LongUrl}}</p>
+                    </div>
+                </div>
+            </div>
+        </b-card>
+    </div>
+    <script>
+        const apiRoot = `${window.location.href.split('/').slice(0, 3).join('/')}/api/ShortenUrl`;
+
+        const mediums = data => {
+            var result = [];
+            if (data.facebook) {
+                result.push("facebook");
+            }
+            if (data.twitter) {
+                result.push("twitter");
+            }
+            if (data.linkedin) {
+                result.push("linkedin");
+            }
+            if (data.medium && data.medium.length > 0) {
+                result.push(data.medium);
+            }
+            return result;
+        };
+
+        var app = new Vue({
+
+            el: '#app',
+
+            data: {
+                baseUrl: apiRoot,
+                url: '',
+                code: '',
+                tagUtm: true,
+                tagWt: true,
+                facebook: true,
+                linkedin: true,
+                twitter: true,
+                medium: '',
+                campaign: "link",
+                urls: [],
+                busy: false,
+                alertText: null,
+                showAlert: false
+            },
+
+            created: function () {
+                this.showAlert = false;
+                this.busy = false;
+            },
+
+            watch: {
+
+                // set busy flag when count of pending asynchronous operations changes
+                // could change busy to a computed field too 
+                'busyCount': function () {
+                    this.busy = this.busyCount > 0;
+                }
+            },
+
+            methods: {
+
+                // get the group list 
+                shorten: function () {
+                    var _this = this;
+                    this.busyCount++;
+                    $.ajax({
+                        type: 'POST',
+                        url: `${_this.baseUrl}?code=${_this.code}`,
+                        data: JSON.stringify({
+                            tagUtm: _this.tagUtm,
+                            tagWt: _this.tagWt,
+                            campaign: _this.campaign,
+                            mediums: mediums(_this),
+                            input: encodeURI(_this.url)
+                        }),
+                        contentType: 'application/json'
+                    })
+                        .done(function (data) {
+                            _this.urls = data;
+                            _this.url = '';
+                        }).fail(function (err) {
+                            _this.showAlert = true;
+                            _this.alertText = err;
+                        }).always(function () { _this.busyCount--; });
+                }
+            }
+
+        });
+    </script>
+</body>
+
+</html>
