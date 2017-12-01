@@ -56,14 +56,14 @@
 
         const mediums = data => {
             var result = [];
-            if (data.facebook) {
-                result.push("facebook");
-            }
             if (data.twitter) {
                 result.push("twitter");
             }
             if (data.linkedin) {
                 result.push("linkedin");
+            }
+            if (data.facebook) {
+                result.push("facebook");
             }
             if (data.medium && data.medium.length > 0) {
                 result.push(data.medium);

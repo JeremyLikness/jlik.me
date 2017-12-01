@@ -26,15 +26,10 @@ namespace jlikme
 
         public const string Alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
         public const string ROBOTS = "robots.txt";
-        public const string ROBOT_RESPONSE = "User-agent: *\nDisallow: /";
-        public const string FALLBACK_URL = "https://blog.jeremylikness.com/?utm_source=jeliknes&utm_medium=redirect&utm_campaign=jlik_me";
-        public const string KEEP_ALIVE = "xxxxxx";
-        public const string KEEP_ALIVE_URL = "https://jlikme.azurewebsites.net/api/UrlRedirect/xxxxxx";
+        public const string ROBOT_RESPONSE = "user-agent: *\ndisallow: /";
         public const string URL_TRACKING = "url-tracking";
         public const string URL_STATS = "url-stats";
-        public const string SOURCE = "jeliknes";
-        public const string DEFAULT_CAMPAIGN = "link";
-
+        
         public const string UTM_MEDIUM = "utm_medium";
         public const string UTM_SOURCE = "utm_source";
         public const string UTM_CAMPAIGN = "utm_campaign";
@@ -43,6 +38,19 @@ namespace jlikme
         public const string TABLE = "urls";
         public const string QUEUE = "requests";
         public const string KEY = "KEY";
+
+        public const string ENV_FALLBACK = "SHORTENER_FALLBACK_URL";
+        public const string ENV_SOURCE = "SHORTENER_SOURCE";
+        public const string ENV_CAMPAIGN = "SHORTENER_DEFAULT_CAMPAIGN";
+
+        public static readonly string FallbackUrl = Environment.GetEnvironmentVariable(ENV_FALLBACK) ?? 
+            "https://blog.jeremylikness.com/?utm_source=jeliknes&utm_medium=redirect&utm_campaign=jlik_me";
+
+        public static readonly string Source = Environment.GetEnvironmentVariable(ENV_SOURCE) ??
+            "jeliknes";
+
+        public static readonly string DefaultCampaign = Environment.GetEnvironmentVariable(ENV_CAMPAIGN) ??
+            "link";
 
         public static readonly int Base = Alphabet.Length;
 
@@ -64,7 +72,7 @@ namespace jlikme
         public static HttpResponseMessage Admin([HttpTrigger(AuthorizationLevel.Anonymous, "get")]HttpRequestMessage req,
             TraceWriter log)
         {
-            var path = "LinkShortener.html";
+            const string PATH = "LinkShortener.html";
            
             var scriptPath = Path.Combine(Environment.CurrentDirectory, "www");
             if (!Directory.Exists(scriptPath))
@@ -73,7 +81,7 @@ namespace jlikme
                     Environment.GetEnvironmentVariable("HOME", EnvironmentVariableTarget.Process), 
                     @"site\wwwroot\www");
             }
-            var filePath = Path.GetFullPath(Path.Combine(scriptPath, path));
+            var filePath = Path.GetFullPath(Path.Combine(scriptPath, PATH));
             if (!File.Exists(filePath))
             {
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
@@ -109,7 +117,7 @@ namespace jlikme
 
             var result = new List<ShortResponse>();
             var url = input.Input;
-            var campaign = string.IsNullOrWhiteSpace(input.Campaign) ? DEFAULT_CAMPAIGN : input.Campaign;
+            var campaign = string.IsNullOrWhiteSpace(input.Campaign) ? DefaultCampaign : input.Campaign;
             bool tagMediums = input.Mediums != null && input.Mediums.Any();
             var utm = input.TagUtm.HasValue && input.TagUtm.Value;
             var wt = input.TagWt.HasValue && input.TagWt.Value;
@@ -145,13 +153,13 @@ namespace jlikme
                     var parameters = HttpUtility.ParseQueryString(uri.Query);
                     if (utm)
                     {
-                        parameters.Add(UTM_SOURCE, SOURCE);
+                        parameters.Add(UTM_SOURCE, Source);
                         parameters.Add(UTM_MEDIUM, medium);
                         parameters.Add(UTM_CAMPAIGN, input.Campaign);
                     }
                     if (wt)
                     {
-                        parameters.Add(WTMCID, $"{input.Campaign}-{medium}-{SOURCE}");
+                        parameters.Add(WTMCID, $"{input.Campaign}-{medium}-{Source}");
                     }
                     uri.Query = parameters.ToString();
                     var mediumUrl = uri.ToString();
@@ -209,14 +217,7 @@ namespace jlikme
         {
             log.Info($"C# HTTP trigger function processed a request for shortUrl {shortUrl}");
 
-            shortUrl = shortUrl.ToLower();
-
-            if (shortUrl == KEEP_ALIVE)
-            {
-                log.Info("Exiting keep alive call.");
-                var noContent = req.CreateResponse(HttpStatusCode.NoContent);
-                return noContent;
-            }
+            shortUrl = shortUrl.ToLower();            
 
             if (shortUrl == ROBOTS)
             {
@@ -225,7 +226,7 @@ namespace jlikme
                 return robotResponse;
             }
 
-            var redirectUrl = FALLBACK_URL;
+            var redirectUrl = FallbackUrl;
             
             if (!String.IsNullOrWhiteSpace(shortUrl))
             {
@@ -248,13 +249,12 @@ namespace jlikme
                     log.Info($"Found it: {fullUrl.Url}");
                     redirectUrl = WebUtility.UrlDecode(fullUrl.Url);
                 }
+                await queue.AddAsync($"{shortUrl}|{redirectUrl}|{DateTime.UtcNow}");
             }
             else
             {
-                telemetry.TrackEvent("Bad Link");
+                telemetry.TrackEvent("Bad Link, resorting to fallback.");
             }
-
-            await queue.AddAsync($"{shortUrl}|{redirectUrl}|{DateTime.UtcNow}");
 
             var res = req.CreateResponse(HttpStatusCode.Redirect);
             res.Headers.Add("Location", redirectUrl);
@@ -262,11 +262,9 @@ namespace jlikme
         }
 
         [FunctionName("KeepAlive")]
-        public static async Task KeepAlive([TimerTrigger(scheduleExpression: "0 */4 * * * *")]TimerInfo myTimer, TraceWriter log)
+        public static void KeepAlive([TimerTrigger(scheduleExpression: "0 */4 * * * *")]TimerInfo myTimer, TraceWriter log)
         {
-            log.Info("Keep-Alive invoked.");
-            var client = new HttpClient();
-            await client.GetAsync(KEEP_ALIVE_URL);
+            log.Info("Keep-Alive invoked.");            
         }
 
         [FunctionName("ProcessQueue")]
