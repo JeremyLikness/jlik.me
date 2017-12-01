@@ -5,7 +5,7 @@
       "matchCondition": {
         "route": "/{shortUrl}"
       },
-      "backendUri": "http://jlikme.azurewebsites.net/api/UrlRedirect/{shortUrl}"
+      "backendUri": "http://%WEBSITE_HOSTNAME%/api/UrlRedirect/{shortUrl}"
     }
   }
 }
