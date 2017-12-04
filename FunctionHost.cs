@@ -299,6 +299,7 @@ namespace jlikme
                 pageUrl.Query = parameters.ToString();
                 // and this 
                 date = DateTime.Parse(parsed[2]);
+                pageUrl.Port = -1;
                 page = $"{pageUrl.ToString()}";
                 telemetry.TrackPageView(page);
                 log.Info($"Tracked page view {page}");
