@@ -1,6 +1,6 @@
 ﻿using Microsoft.WindowsAzure.Storage.Table;
 
-namespace jlikme
+namespace jlikme.domain
 {
     public class NextId : TableEntity 
     {

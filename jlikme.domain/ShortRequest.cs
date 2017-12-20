@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace jlikme.Models
+namespace jlikme.domain
 {
     public class ShortRequest
     {
