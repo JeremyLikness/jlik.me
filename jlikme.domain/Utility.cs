@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -78,6 +79,76 @@ namespace jlikme.domain
                 ShortUrl = newUrl.RowKey.AsShortUrlWithHost(host),
                 LongUrl = WebUtility.UrlDecode(newUrl.Url)
             };
+        }
+
+        public static AnalyticsEntry ParseQueuePayload(string payload)
+        {
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                throw new ArgumentNullException("payload");
+            }
+            var parts = payload.Split('|');
+            if (parts.Length != 3)
+            {
+                throw new ArgumentException($"Bad payload: {payload}");
+            }
+            var entry = new AnalyticsEntry
+            {
+                ShortUrl = parts[0].ToUpper().Trim(),
+                LongUrl = new Uri(parts[1]),
+                TimeStamp = DateTime.Parse(parts[2])
+            };
+            return entry;
+        }
+
+        public static string AsPage(this Uri uri, Func<string, NameValueCollection> parseQuery)
+        {
+            var pageUrl = new UriBuilder(uri)
+            {
+                Port = -1
+            };
+            var parameters = parseQuery(pageUrl.Query);
+            foreach (var check in new[] {
+                Utility.UTM_CAMPAIGN,
+                Utility.UTM_MEDIUM,
+                Utility.UTM_SOURCE,
+                Utility.WTMCID })
+            {
+                if (parameters[check] != null)
+                {
+                    parameters.Remove(check);
+                }
+            }
+            pageUrl.Query = parameters.ToString();
+            return $"{pageUrl.Host}{pageUrl.Path}{pageUrl.Query}{pageUrl.Fragment}";
+        }
+
+        public static Tuple<string,string> ExtractCampaignAndMedium(this Uri uri, Func<string, NameValueCollection> parseQuery)
+        {
+            var campaign = string.Empty;
+            var medium = string.Empty;
+            if (!string.IsNullOrWhiteSpace(uri.Query))
+            {
+                var queries = parseQuery(uri.Query);
+                if (queries[Utility.WTMCID] != null)
+                {
+                    var parts = queries[Utility.WTMCID].Split('-');
+                    if (parts.Length == 3)
+                    {
+                        campaign = parts[0];
+                        medium = parts[1];
+                    }
+                }
+                else if (queries[Utility.UTM_MEDIUM] != null)
+                {
+                    medium = queries[Utility.UTM_MEDIUM];
+                    if (queries[Utility.UTM_CAMPAIGN] != null)
+                    {
+                        campaign = queries[Utility.UTM_CAMPAIGN];
+                    }
+                }                                
+            }
+            return Tuple.Create(campaign, medium);
         }
     }
 }

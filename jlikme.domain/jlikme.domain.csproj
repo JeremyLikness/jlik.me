@@ -127,6 +127,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Analytics.cs" />
+    <Compile Include="AnalyticsEntry.cs" />
     <Compile Include="NextId.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ShortRequest.cs" />

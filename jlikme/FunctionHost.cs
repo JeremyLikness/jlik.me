@@ -254,86 +254,51 @@ namespace jlikme
             [DocumentDB(Utility.URL_TRACKING, Utility.URL_STATS, CreateIfNotExists = true, ConnectionStringSetting = "CosmosDb")]out dynamic doc,
             TraceWriter log)
         {
-            var parsed = request.Split('|');
-            var page = string.Empty;
-            var shortUrl = string.Empty;
-            var campaign = string.Empty;
-            DateTime date = DateTime.UtcNow;
-            var customEvent = string.Empty;
-            if (parsed.Length != 3)
+            try
             {
-                log.Warning($"Bad queue request: {request}");
-            }
-            else
-            {
-                shortUrl = parsed[0].ToUpper().Trim();
-                // throw exception if this is bad 
-                var url = new Uri(parsed[1]);
-                var pageUrl = new UriBuilder(parsed[1]);
-                var parameters = HttpUtility.ParseQueryString(pageUrl.Query);
-                foreach (var check in new[] { Utility.UTM_CAMPAIGN, Utility.UTM_MEDIUM, Utility.UTM_SOURCE, Utility.WTMCID })
-                {
-                    if (parameters[check] != null)
-                    {
-                        parameters.Remove(check);
-                    }
-                }
-                pageUrl.Query = parameters.ToString();
-                // and this 
-                date = DateTime.Parse(parsed[2]);
-                pageUrl.Port = -1;
-                page = $"{pageUrl.ToString()}";
+                var parsed = Utility.ParseQueuePayload(request);
+                var page = parsed.LongUrl.AsPage(HttpUtility.ParseQueryString);
+
                 telemetry.TrackPageView(page);
                 log.Info($"Tracked page view {page}");
-                if (!string.IsNullOrWhiteSpace(url.Query))
-                {
-                    customEvent = string.Empty;
-                    var queries = HttpUtility.ParseQueryString(url.Query);
-                    if (queries[Utility.UTM_MEDIUM] != null)
-                    {
-                        customEvent = queries[Utility.UTM_MEDIUM];
-                        if (queries[Utility.UTM_CAMPAIGN] != null)
-                        {
-                            campaign = queries[Utility.UTM_CAMPAIGN];
-                        }
-                    }
-                    else
-                    {
-                        if (queries[Utility.WTMCID] != null)
-                        {
-                            var parts = queries[Utility.WTMCID].Split('-');
-                            campaign = parts[0];
-                            customEvent = parts[1];
-                        }
-                    }
-                    if (!string.IsNullOrWhiteSpace(customEvent))
-                    {
-                        telemetry.TrackEvent(customEvent);
-                        log.Info($"Tracked custom event: {customEvent}");
-                    }
-                }
-            }
 
-            // cosmos DB 
-            var normalize = new[] { '/' };
-            doc = new ExpandoObject();
-            doc.id = Guid.NewGuid().ToString();
-            doc.page = page.TrimEnd(normalize);
-            if (!string.IsNullOrWhiteSpace(shortUrl))
-            {
-                doc.shortUrl = shortUrl;
+                var analytics = parsed.LongUrl.ExtractCampaignAndMedium(HttpUtility.ParseQueryString);
+                var campaign = analytics.Item1;
+                var medium = analytics.Item2;
+
+                if (!string.IsNullOrWhiteSpace(medium))
+                {
+                    telemetry.TrackEvent(medium);
+                    log.Info($"Tracked custom event: {medium}");
+                }
+
+                // cosmos DB 
+                var normalize = new[] { '/' };
+                doc = new ExpandoObject();
+                doc.id = Guid.NewGuid().ToString();
+                doc.page = page.TrimEnd(normalize);
+                if (!string.IsNullOrWhiteSpace(parsed.ShortUrl))
+                {
+                    doc.shortUrl = parsed.ShortUrl;
+                }
+                if (!string.IsNullOrWhiteSpace(campaign))
+                {
+                    doc.campaign = campaign;
+                }
+                doc.count = 1;
+                doc.timestamp = parsed.TimeStamp;
+                doc.host = parsed.LongUrl.DnsSafeHost;
+                if (!string.IsNullOrWhiteSpace(medium))
+                {
+                    ((IDictionary<string, object>)doc).Add(medium, 1);
+                }
+                log.Info($"CosmosDB: {doc.id}|{doc.page}|{parsed.ShortUrl}|{campaign}|{medium}");
             }
-            if (!string.IsNullOrWhiteSpace(campaign))
+            catch(Exception ex)
             {
-                doc.campaign = campaign;
+                log.Error("An unexpected error occurred", ex);
+                throw;
             }
-            doc.count = 1;
-            doc.timestamp = date;
-            if (!string.IsNullOrWhiteSpace(customEvent))
-            {
-                ((IDictionary<string, object>)doc).Add(customEvent, 1);
-            }
-            log.Info($"CosmosDB: {doc.id}|{doc.page}|{shortUrl}|{campaign}|{customEvent}");
         }
     }
 }
