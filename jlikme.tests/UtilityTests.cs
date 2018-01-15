@@ -221,23 +221,25 @@ namespace jlikme.tests
         [ExpectedException(typeof(UriFormatException))]
         public void Given_Bad_Url_When_ParseQueuePayload_Called_Then_Throw_Exception()
         {
-            var result = Utility.ParseQueuePayload($"{SHORTCODE}|{BADURL}|{GOODDATE}");
+            var result = Utility.ParseQueuePayload($"{SHORTCODE}|{BADURL}|{GOODDATE}||");
         }
 
         [TestMethod]
         [ExpectedException(typeof(FormatException))]
         public void Given_Bad_Date_When_ParseQueuePayload_Called_Then_Throw_Exception()
         {
-            var result = Utility.ParseQueuePayload($"{SHORTCODE}|{URL}|{BADDATE}");
+            var result = Utility.ParseQueuePayload($"{SHORTCODE}|{URL}|{BADDATE}||");
         }
 
         [TestMethod]
         public void Given_Good_Payload_When_ParseQueuePayload_Called_Then_Returns_AnalyticsEntry()
         {
-            var result = Utility.ParseQueuePayload($"{SHORTCODE}|{URL}|{GOODDATE}");
+            var result = Utility.ParseQueuePayload($"{SHORTCODE}|{URL}|{GOODDATE}|{URL}|x");
             Assert.AreEqual(SHORTCODE, result.ShortUrl);
             Assert.AreEqual(new Uri(URL), result.LongUrl);
             Assert.AreEqual(DateTime.Parse(GOODDATE), result.TimeStamp);
+            Assert.AreEqual(new Uri(URL), result.Referrer);
+            Assert.AreEqual("x", result.Agent);
         }
 
         [TestMethod]

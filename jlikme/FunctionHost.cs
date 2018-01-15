@@ -14,6 +14,9 @@ using System.Collections.Generic;
 using jlikme.domain;
 using System.IO;
 using System.Net.Http.Headers;
+using System.Collections;
+using System.Web.Configuration;
+using System.Collections.Specialized;
 
 namespace jlikme
 {
@@ -231,12 +234,14 @@ namespace jlikme
                     log.Info($"Found it: {fullUrl.Url}");
                     redirectUrl = WebUtility.UrlDecode(fullUrl.Url);
                 }
+                var referrer = string.Empty;
                 if (req.Headers.Referrer != null)
                 {
                     log.Info($"Referrer: {req.Headers.Referrer.ToString()}");
+                    referrer = req.Headers.Referrer.ToString();
                 }
                 log.Info($"User agent: {req.Headers.UserAgent.ToString()}");
-                await queue.AddAsync($"{shortUrl}|{redirectUrl}|{DateTime.UtcNow}");
+                await queue.AddAsync($"{shortUrl}|{redirectUrl}|{DateTime.UtcNow}|{referrer}|{req.Headers.UserAgent.ToString().Replace('|','^')}");
             }
             else
             {
@@ -289,6 +294,60 @@ namespace jlikme
                 if (!string.IsNullOrWhiteSpace(campaign))
                 {
                     doc.campaign = campaign;
+                }
+                if (parsed.Referrer != null)
+                {
+                    doc.referrerUrl = parsed.Referrer.AsPage(HttpUtility.ParseQueryString);
+                    doc.referrerHost = parsed.Referrer.DnsSafeHost;
+                }
+                if (!string.IsNullOrWhiteSpace(parsed.Agent))
+                {
+                    doc.agent = parsed.Agent;
+                    try
+                    {
+                        var capabilities = new HttpBrowserCapabilities()
+                        {
+                            Capabilities = new Hashtable { { string.Empty, parsed.Agent } }
+                        };
+                        var factory = new BrowserCapabilitiesFactory();
+                        factory.ConfigureBrowserCapabilities(new NameValueCollection(), capabilities);
+                        factory.ConfigureCustomCapabilities(new NameValueCollection(), capabilities);   
+                        if (!string.IsNullOrEmpty(capabilities.Browser))
+                        {
+                            var browser = capabilities.Browser;
+                            var version = capabilities.MajorVersion;
+                            var browserVersion = $"{browser} {capabilities.MajorVersion}";
+                            doc.browser = browser;
+                            doc.browserVersion = version;
+                            doc.browserWithVersion = browserVersion;
+                        }
+                        if (capabilities.Crawler)
+                        {
+                            doc.crawler = 1;
+                        }
+                        if (capabilities.IsMobileDevice)
+                        {
+                            doc.mobile = 1;
+                            var manufacturer = capabilities.MobileDeviceManufacturer;
+                            var model = capabilities.MobileDeviceModel;
+                            doc.mobileManufacturer = manufacturer;
+                            doc.mobileModel = model;
+                            doc.mobileDevice = $"{manufacturer} {model}";
+                        }
+                        else
+                        {
+                            doc.desktop = 1;
+                        }
+                        if (!string.IsNullOrWhiteSpace(capabilities.Platform))
+                        {
+                            doc.platform = capabilities.Platform;
+                        }
+
+                    }
+                    catch (Exception ex)
+                    {
+                        log.Error($"Error parsing user agent [{parsed.Agent}]", ex);
+                    }
                 }
                 doc.count = 1;
                 doc.timestamp = parsed.TimeStamp;

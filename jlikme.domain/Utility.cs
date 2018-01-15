@@ -88,7 +88,7 @@ namespace jlikme.domain
                 throw new ArgumentNullException("payload");
             }
             var parts = payload.Split('|');
-            if (parts.Length != 3)
+            if (parts.Length != 5)
             {
                 throw new ArgumentException($"Bad payload: {payload}");
             }
@@ -96,7 +96,9 @@ namespace jlikme.domain
             {
                 ShortUrl = parts[0].ToUpper().Trim(),
                 LongUrl = new Uri(parts[1]),
-                TimeStamp = DateTime.Parse(parts[2])
+                TimeStamp = DateTime.Parse(parts[2]),
+                Referrer = string.IsNullOrWhiteSpace(parts[3]) ? null : new Uri(parts[3]),
+                Agent = parts[4]
             };
             return entry;
         }
