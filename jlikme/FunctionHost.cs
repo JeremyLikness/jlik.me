@@ -231,6 +231,11 @@ namespace jlikme
                     log.Info($"Found it: {fullUrl.Url}");
                     redirectUrl = WebUtility.UrlDecode(fullUrl.Url);
                 }
+                if (req.Headers.Referrer != null)
+                {
+                    log.Info($"Referrer: {req.Headers.Referrer.ToString()}");
+                }
+                log.Info($"User agent: {req.Headers.UserAgent.ToString()}");
                 await queue.AddAsync($"{shortUrl}|{redirectUrl}|{DateTime.UtcNow}");
             }
             else
@@ -256,7 +261,7 @@ namespace jlikme
         {
             try
             {
-                var parsed = Utility.ParseQueuePayload(request);
+                AnalyticsEntry parsed = Utility.ParseQueuePayload(request);
                 var page = parsed.LongUrl.AsPage(HttpUtility.ParseQueryString);
 
                 telemetry.TrackPageView(page);
