@@ -6,6 +6,16 @@
         "route": "/{shortUrl}"
       },
       "backendUri": "http://%WEBSITE_HOSTNAME%/api/UrlRedirect/{shortUrl}"
+    },
+    "Root": {
+      "matchCondition": {
+        "route": "/"
+      },
+      "responseOverrides": {
+        "response.statusCode": "301",
+        "response.statusReason": "Moved Permanently",
+        "response.headers.location": "https://blog.jeremylikness.com/?utm_source=jlikme&utm_medium=link&utm_campaign=url-shortener"
+      }
     }
   }
 }
