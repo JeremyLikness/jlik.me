@@ -40,8 +40,8 @@ namespace jlikme
             "link";
 
         private static async Task TrackDependencyAsync(
-            string dependency, 
-            string command, 
+            string dependency,
+            string command,
             Func<Task> commandAsync,
             Func<bool> success)
         {
@@ -126,7 +126,7 @@ namespace jlikme
 
                 // strategy for logging 
                 void logFn(string msg) => log.Info(msg);
-                
+
                 // strategy to save the key 
                 async Task saveKeyAsync()
                 {
@@ -138,7 +138,7 @@ namespace jlikme
                 async Task saveEntryAsync(TableEntity entry)
                 {
                     var operation = TableOperation.Insert(entry);
-                    await tableOut.ExecuteAsync(operation);                    
+                    await tableOut.ExecuteAsync(operation);
                 }
 
                 // strategy to create a new URL and track the dependencies
@@ -184,7 +184,7 @@ namespace jlikme
                 log.Info($"Done.");
                 return req.CreateResponse(HttpStatusCode.OK, result);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 log.Error("An unexpected error was encountered.", ex);
                 return req.CreateErrorResponse(HttpStatusCode.BadRequest, ex);
@@ -228,7 +228,7 @@ namespace jlikme
                     result = await inputTable.ExecuteAsync(operation);
                 },
                 () => result != null && result.Result != null);
-                
+
                 if (result.Result is ShortUrl fullUrl)
                 {
                     log.Info($"Found it: {fullUrl.Url}");
@@ -241,7 +241,7 @@ namespace jlikme
                     referrer = req.Headers.Referrer.ToString();
                 }
                 log.Info($"User agent: {req.Headers.UserAgent.ToString()}");
-                await queue.AddAsync($"{shortUrl}|{redirectUrl}|{DateTime.UtcNow}|{referrer}|{req.Headers.UserAgent.ToString().Replace('|','^')}");
+                await queue.AddAsync($"{shortUrl}|{redirectUrl}|{DateTime.UtcNow}|{referrer}|{req.Headers.UserAgent.ToString().Replace('|', '^')}");
             }
             else
             {
@@ -311,7 +311,7 @@ namespace jlikme
                         };
                         var factory = new BrowserCapabilitiesFactory();
                         factory.ConfigureBrowserCapabilities(new NameValueCollection(), capabilities);
-                        factory.ConfigureCustomCapabilities(new NameValueCollection(), capabilities);   
+                        factory.ConfigureCustomCapabilities(new NameValueCollection(), capabilities);
                         if (!string.IsNullOrEmpty(capabilities.Browser))
                         {
                             var browser = capabilities.Browser;
@@ -358,11 +358,31 @@ namespace jlikme
                 }
                 log.Info($"CosmosDB: {doc.id}|{doc.page}|{parsed.ShortUrl}|{campaign}|{medium}");
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 log.Error("An unexpected error occurred", ex);
                 throw;
             }
+        }
+
+        [FunctionName(name: "UpdateTwitter")]
+        public static async Task<HttpResponseMessage> Twitter([HttpTrigger(AuthorizationLevel.Function, "post",
+            Route = "UpdateTwitter/{id}")]HttpRequestMessage req,
+            [DocumentDB(Utility.URL_TRACKING, Utility.URL_STATS, CreateIfNotExists = false, ConnectionStringSetting = "CosmosDb", Id = "{id}")]dynamic doc,
+            string id,
+            TraceWriter log)
+        {
+            if (doc == null)
+            {
+                log.Error($"Doc not found with id: {id}.");
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+            var link = await req.Content.ReadAsStringAsync();
+            if (!string.IsNullOrWhiteSpace(link))
+            {
+                doc.referralTweet = link;
+            }
+            return req.CreateResponse(HttpStatusCode.OK);
         }
     }
 }
