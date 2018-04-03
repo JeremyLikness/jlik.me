@@ -24,7 +24,9 @@ namespace jlikme
     {
         public static TelemetryClient telemetry = new TelemetryClient()
         {
+#if !DEBUG
             InstrumentationKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY")
+#endif
         };
 
         // this is redirect target when the short URL isn't found
@@ -45,13 +47,22 @@ namespace jlikme
             Func<Task> commandAsync,
             Func<bool> success)
         {
+#if DEBUG
+            return;
+#else
             var startTime = DateTime.UtcNow;
             var timer = System.Diagnostics.Stopwatch.StartNew();
 
             await commandAsync();
 
             telemetry.TrackDependency(dependency, command, startTime, timer.Elapsed, success());
+#endif
+        }
 
+        private static HttpResponseMessage SecurityCheck(HttpRequestMessage req)
+        {
+            return req.IsLocal() || req.RequestUri.Scheme == "https" ? null :
+                req.CreateResponse(HttpStatusCode.Forbidden);
         }
 
         // returns a single page application to build links
@@ -60,6 +71,12 @@ namespace jlikme
             TraceWriter log)
         {
             const string PATH = "LinkShortener.html";
+
+            var result = SecurityCheck(req);
+            if (result != null)
+            {
+                return result;
+            }
 
             var scriptPath = Path.Combine(Environment.CurrentDirectory, "www");
             if (!Directory.Exists(scriptPath))
@@ -93,6 +110,12 @@ namespace jlikme
             if (req == null)
             {
                 return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            var check = SecurityCheck(req);
+            if (check != null)
+            {
+                return check;
             }
 
             ShortRequest input = await req.Content.ReadAsAsync<ShortRequest>();
@@ -372,6 +395,11 @@ namespace jlikme
             string id,
             TraceWriter log)
         {
+            var result = SecurityCheck(req);
+            if (result != null)
+            {
+                return result;
+            }
             if (doc == null)
             {
                 log.Error($"Doc not found with id: {id}.");
