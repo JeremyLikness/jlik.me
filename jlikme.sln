@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "jlikme.domain", "jlikme.dom
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "jlikme.tests", "jlikme.tests\jlikme.tests.csproj", "{EE12D0CF-3BE8-4C44-8C3F-CD020269BB2F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "jlikme.corefn", "jlikme.corefn\jlikme.corefn.csproj", "{243B7861-8CE5-45D6-AE23-B27F0E22F269}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{EE12D0CF-3BE8-4C44-8C3F-CD020269BB2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EE12D0CF-3BE8-4C44-8C3F-CD020269BB2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EE12D0CF-3BE8-4C44-8C3F-CD020269BB2F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{243B7861-8CE5-45D6-AE23-B27F0E22F269}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{243B7861-8CE5-45D6-AE23-B27F0E22F269}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{243B7861-8CE5-45D6-AE23-B27F0E22F269}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{243B7861-8CE5-45D6-AE23-B27F0E22F269}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
