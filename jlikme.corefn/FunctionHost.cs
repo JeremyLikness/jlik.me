@@ -342,7 +342,7 @@ namespace jlikme.corefn
                         {
                             doc.crawler = 1;
                         }
-                        if (client.Device.Family.ToLowerInvariant().Contains("mobile"))
+                        if (parsed.Agent.ToLowerInvariant().Contains("mobile"))
                         {
                             doc.mobile = 1;
                             var manufacturer = client.Device.Brand;
@@ -357,9 +357,10 @@ namespace jlikme.corefn
                         }
                         if (!string.IsNullOrWhiteSpace(client.OS.Family))
                         {
-                            doc.platform = $"{client.OS.Family} {client.OS.Major}";
+                            doc.platform = client.OS.Family;
+                            doc.platformVersion = client.OS.Major;
+                            doc.platformWithVersion = $"{client.OS.Family} {client.OS.Major}";
                         }
-
                     }
                     catch (Exception ex)
                     {
